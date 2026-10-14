@@ -119,8 +119,12 @@ def publish_then_land(record, probe_id):
                                              required("DATABRICKS_VOLUME_ROOT"),
                                              probe_id, message.value)
                     # Commit this exact message only after the cloud upload is verified.
-                    consumer.commit({TopicPartition(message.topic, message.partition):
-                                     OffsetAndMetadata(message.offset + 1, "")})
+                    # kafka-python 2.3+ includes leader_epoch; earlier releases do not.
+                    try:
+                        committed_offset = OffsetAndMetadata(message.offset + 1, "", -1)
+                    except TypeError:
+                        committed_offset = OffsetAndMetadata(message.offset + 1, "")
+                    consumer.commit({TopicPartition(message.topic, message.partition): committed_offset})
                     print(f"PASS Databricks Files API: verified {path}")
                     return session, host
         raise TimeoutError("Kafka consumer did not see this probe in 90 seconds")
